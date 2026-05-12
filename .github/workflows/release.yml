@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Generate icon
+        run: python create_icon.py
+
+      - name: Build Windows executable
+        run: python build_exe.py
+
+      - name: Upload Windows executable
+        uses: actions/upload-release-asset@v1
+        with:
+          asset_path: dist/Markdown2EPUB.exe
+          asset_name: Markdown2EPUB.exe
+          asset_content_type: application/octet-stream
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Generate icon
+        run: python create_icon.py
+
+      - name: Build macOS application
+        run: python build_mac.py
+
+      - name: Create ZIP for macOS
+        run: |
+          cd dist
+          zip -r Markdown2EPUB.app.zip Markdown2EPUB.app
+
+      - name: Upload macOS application
+        uses: actions/upload-release-asset@v1
+        with:
+          asset_path: dist/Markdown2EPUB.app.zip
+          asset_name: Markdown2EPUB.app.zip
+          asset_content_type: application/zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
