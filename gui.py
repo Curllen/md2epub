@@ -2,6 +2,7 @@ import os
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from tkinter.scrolledtext import ScrolledText
+import threading
 
 class MarkdownToEpubApp:
     def __init__(self, root):
@@ -121,14 +122,12 @@ class MarkdownToEpubApp:
         )
         if file_path:
             self.input_path.set(file_path)
-            # 自动设置标题为文件名
             self.title_var.set(os.path.basename(file_path).replace('.md', ''))
     
     def select_input_dir(self):
         dir_path = filedialog.askdirectory(title="选择包含Markdown文件的目录")
         if dir_path:
             self.input_path.set(dir_path)
-            # 自动设置标题为目录名
             self.title_var.set(os.path.basename(dir_path))
     
     def select_output_path(self):
@@ -185,14 +184,48 @@ class MarkdownToEpubApp:
         
         return toc_items if toc_items else None
     
+    def update_status(self, text):
+        """在主线程中更新状态"""
+        self.status_var.set(text)
+        self.root.update()
+    
+    def convert_thread(self, input_path, output_path, title, author, cover_path, images_dir, custom_toc):
+        """在后台线程中执行转换"""
+        try:
+            self.update_status("正在转换...")
+            
+            from converter import EpubConverter
+            converter = EpubConverter()
+            output_file = converter.convert_markdown_to_epub(
+                input_path, output_path, title, author, cover_path, custom_toc, images_dir
+            )
+            
+            self.root.after(0, lambda: self.on_conversion_success(output_file))
+        except Exception as e:
+            error_msg = str(e)
+            import traceback
+            traceback.print_exc()
+            self.root.after(0, lambda: self.on_conversion_error(error_msg))
+    
+    def on_conversion_success(self, output_file):
+        """转换成功后的回调"""
+        self.convert_btn.config(state=tk.NORMAL)
+        self.status_var.set("转换完成")
+        messagebox.showinfo("成功", f"转换完成！\n文件已保存到: {output_file}")
+    
+    def on_conversion_error(self, error_msg):
+        """转换失败后的回调"""
+        self.convert_btn.config(state=tk.NORMAL)
+        self.status_var.set("转换失败")
+        messagebox.showerror("转换错误", f"转换过程中发生错误:\n{error_msg}")
+    
     def convert(self):
-        # 验证输入
         input_path = self.input_path.get()
         output_path = self.output_path.get()
-        title = self.title_var.get()
-        author = self.author_var.get()
-        cover_path = self.cover_path.get() if self.cover_path.get() else None
-        images_dir = self.images_path.get() if self.images_path.get() else None
+        title = self.title_var.get().strip()
+        author = self.author_var.get().strip()
+        cover_path = self.cover_path.get().strip() if self.cover_path.get() else None
+        images_dir = self.images_path.get().strip() if self.images_path.get() else None
         
         if not input_path:
             messagebox.showerror("错误", "请选择输入文件或目录")
@@ -210,20 +243,17 @@ class MarkdownToEpubApp:
             messagebox.showerror("错误", "请输入作者名称")
             return
         
-        # 解析自定义目录
         custom_toc = self.parse_custom_toc()
         
-        # 更新状态
+        self.convert_btn.config(state=tk.DISABLED)
         self.status_var.set("正在转换...")
-        self.root.update()
         
-        from converter import EpubConverter
-        converter = EpubConverter()
-        output_file = converter.convert_markdown_to_epub(
-            input_path, output_path, title, author, cover_path, custom_toc, images_dir
+        thread = threading.Thread(
+            target=self.convert_thread,
+            args=(input_path, output_path, title, author, cover_path, images_dir, custom_toc)
         )
-        messagebox.showinfo("成功", f"转换完成！\n文件已保存到: {output_file}")
-        self.status_var.set("转换完成")
+        thread.daemon = True
+        thread.start()
     
     def use_default_images_dir(self):
         """设置默认图片目录（Markdown文档所在目录下的images子目录）"""
@@ -234,16 +264,12 @@ class MarkdownToEpubApp:
             return
         
         if os.path.isfile(input_path):
-            # 如果选择的是文件，使用其所在目录
             base_dir = os.path.dirname(input_path)
         else:
-            # 如果选择的是目录，直接使用该目录
             base_dir = input_path
         
-        # 构建默认图片目录路径
         default_images_dir = os.path.join(base_dir, "images")
         
-        # 检查目录是否存在
         if not os.path.exists(default_images_dir):
             result = messagebox.askquestion("创建目录", 
                 f"默认图片目录 '{default_images_dir}' 不存在，是否创建？")
@@ -256,5 +282,4 @@ class MarkdownToEpubApp:
             else:
                 return
         
-        # 设置图片目录路径
         self.images_path.set(default_images_dir)
