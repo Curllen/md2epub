@@ -2,6 +2,8 @@ from PIL import Image, ImageDraw, ImageFont
 import os
 import platform
 import subprocess
+import shutil
+import sys
 
 def create_icon():
     # 创建一个512x512的图像，带有透明背景
@@ -61,19 +63,19 @@ def create_icon():
             
             # 清理临时文件
             shutil.rmtree("icon.iconset")
-            print("已创建macOS图标文件: icon.icns")
+            print("Created macOS icon file: icon.icns")
         except Exception as e:
-            print(f"创建macOS图标时出错: {str(e)}")
-            print("您可以手动安装libicns工具并转换，或使用在线转换服务。")
+            print(f"Error creating macOS icon: {str(e)}")
+            print("You can manually install libicns and convert, or use an online conversion service.")
     else:
-        print("未在macOS上运行，跳过创建.icns文件。如需macOS图标，请在macOS系统上运行此脚本或使用在线转换服务。")
+        print("Not running on macOS, skipping .icns file creation. For macOS icons, run this script on macOS or use an online conversion service.")
     
     # 清理临时文件
     for icon in icons:
         if os.path.exists(icon):
             os.remove(icon)
     
-    print("图标文件已创建完成")
+    print("Icon files created successfully")
 
 if __name__ == "__main__":
     create_icon()

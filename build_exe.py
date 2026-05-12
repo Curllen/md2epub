@@ -27,7 +27,7 @@ def build_exe():
     # 运行PyInstaller
     PyInstaller.__main__.run(args)
     
-    print("打包完成，可执行文件在dist目录中。")
+    print("Build completed, executable file is in dist directory.")
 
 if __name__ == "__main__":
     build_exe()
