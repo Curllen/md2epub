@@ -217,6 +217,8 @@ class EpubConverter:
                 # 记录当前的标题层级结构
                 h1_sections = {}  # 存储h1标题和其对应的Section对象
                 h2_sections = {}  # 存储h2标题和其对应的Section对象
+                current_h1 = None
+                current_h2 = None
                 
                 chapter_items = []  # 用于存储章节下的所有目录项
                 
