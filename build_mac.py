@@ -3,11 +3,18 @@ import os
 import shutil
 import platform
 import subprocess
+import sys
+
+try:
+    if sys.stdout.encoding != 'utf-8':
+        sys.stdout.reconfigure(encoding='utf-8')
+except Exception:
+    pass
 
 def build_mac_app():
     # 检查是否在macOS系统上运行
     if platform.system() != "Darwin":
-        print("警告：此脚本应在macOS系统上运行，当前系统是", platform.system())
+        print("Warning: This script should be run on macOS, current system is", platform.system())
     
     # 清理之前的构建文件
     if os.path.exists('dist'):
@@ -48,10 +55,10 @@ def build_mac_app():
     app_path = os.path.join('dist', 'Markdown2EPUB.app')
     resources_dir = os.path.join(app_path, 'Contents', 'Resources')
     
-    print("打包完成，macOS应用程序在dist目录中。")
+    print("Build complete! macOS app is in dist directory.")
     
     # 修复权限
-    print("修复应用程序权限...")
+    print("Fixing application permissions...")
     subprocess.run(['chmod', '-R', '+x', app_path])
 
 if __name__ == "__main__":

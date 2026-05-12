@@ -1,6 +1,13 @@
 import PyInstaller.__main__
 import os
 import shutil
+import sys
+
+try:
+    if sys.stdout.encoding != 'utf-8':
+        sys.stdout.reconfigure(encoding='utf-8')
+except Exception:
+    pass
 
 def build_exe():
     # 清理之前的构建文件
@@ -27,7 +34,7 @@ def build_exe():
     # 运行PyInstaller
     PyInstaller.__main__.run(args)
     
-    print("打包完成，可执行文件在dist目录中。")
+    print("Build complete! Executable is in dist directory.")
 
 if __name__ == "__main__":
     build_exe()
