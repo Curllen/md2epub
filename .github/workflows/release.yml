@@ -1,4 +1,4 @@
-name: 构建发行版本
+name: Release
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
     inputs:
       tag:
         description: 'Tag name (e.g. v1.2.3)'
-        required: true
+        required: false
 
 permissions:
   contents: write
@@ -16,6 +16,8 @@ permissions:
 jobs:
   build-windows:
     runs-on: windows-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -35,17 +37,17 @@ jobs:
       - name: Build Windows executable
         run: python build_exe.py
 
-      - name: Upload Windows executable
-        uses: actions/upload-release-asset@v1
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
         with:
-          asset_path: dist/Markdown2EPUB.exe
-          asset_name: Markdown2EPUB.exe
-          asset_content_type: application/octet-stream
+          files: dist/Markdown2EPUB.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-macos:
     runs-on: macos-latest
+    needs: build-windows
     steps:
       - uses: actions/checkout@v4
 
@@ -71,10 +73,9 @@ jobs:
           zip -r Markdown2EPUB.app.zip Markdown2EPUB.app
 
       - name: Upload macOS application
-        uses: actions/upload-release-asset@v1
+        uses: softprops/action-gh-release@v1
         with:
-          asset_path: dist/Markdown2EPUB.app.zip
-          asset_name: Markdown2EPUB.app.zip
-          asset_content_type: application/zip
+          files: dist/Markdown2EPUB.app.zip
+          upload_url: ${{ needs.build-windows.outputs.upload_url }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
