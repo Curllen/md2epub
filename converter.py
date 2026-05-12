@@ -281,10 +281,10 @@ class EpubConverter:
         if not self.book:
             raise ValueError("请先创建书籍")
         
-        # 确保输出目录存在
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        output_dir = os.path.dirname(output_path)
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
         
-        # 写入EPUB文件
         epub.write_epub(output_path, self.book, {})
         return output_path
     
