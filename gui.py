@@ -69,7 +69,7 @@ class MarkdownToEpubApp:
         
         # 日志窗口
         self.log_frame = ttk.LabelFrame(self.root, text="转换日志")
-        self.log_text = ScrolledText(self.log_frame, height=8, width=60, state=tk.DISABLED, font=('Courier', 9))
+        self.log_text = ScrolledText(self.log_frame, height=4, width=60, state=tk.DISABLED, font=('Courier', 9))
         self.log_text.tag_config("INFO", foreground="black")
         self.log_text.tag_config("DONE", foreground="green")
         self.log_text.tag_config("ERROR", foreground="red")
