@@ -1,0 +1,93 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name (e.g. v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      tag_name: ${{ env.RELEASE_TAG }}
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create tag if workflow_dispatch
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          git tag ${{ env.RELEASE_TAG }}
+          git push origin ${{ env.RELEASE_TAG }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Generate icon
+        run: python create_icon.py
+
+      - name: Build Windows executable
+        run: python build_exe.py
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Markdown2EPUB.exe
+          tag_name: ${{ env.RELEASE_TAG }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-macos:
+    runs-on: macos-latest
+    needs: build-windows
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Generate icon
+        run: python create_icon.py
+
+      - name: Build macOS application
+        run: python build_mac.py
+
+      - name: Create ZIP for macOS
+        run: |
+          cd dist
+          zip -r Markdown2EPUB.app.zip Markdown2EPUB.app
+
+      - name: Upload macOS application
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Markdown2EPUB.app.zip
+          tag_name: ${{ needs.build-windows.outputs.tag_name }}
+          upload_url: ${{ needs.build-windows.outputs.upload_url }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
