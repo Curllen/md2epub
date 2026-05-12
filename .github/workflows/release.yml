@@ -19,21 +19,17 @@ jobs:
     runs-on: windows-latest
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
-      tag_name: ${{ steps.get_tag.outputs.tag }}
+      tag_name: ${{ env.RELEASE_TAG }}
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Get tag
-        id: get_tag
-        run: |
-          $TAG = if('${{ github.event_name }}' -eq 'workflow_dispatch') { '${{ inputs.tag_name }}' } else { '${{ github.ref_name }}' }
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-
-      - name: Create tag if not exists
+      - name: Create tag if workflow_dispatch
         if: github.event_name == 'workflow_dispatch'
         run: |
-          git tag ${{ inputs.tag_name }}
-          git push origin ${{ inputs.tag_name }}
+          git tag ${{ env.RELEASE_TAG }}
+          git push origin ${{ env.RELEASE_TAG }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -56,7 +52,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist/Markdown2EPUB.exe
-          tag_name: ${{ steps.get_tag.outputs.tag }}
+          tag_name: ${{ env.RELEASE_TAG }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
