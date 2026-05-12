@@ -132,13 +132,17 @@ class EpubConverter:
         
         return 'application/octet-stream'
     
+    def natural_sort_key(self, s):
+        """生成自然排序的键"""
+        return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
+    
     def add_markdown_directory(self, dir_path, custom_toc=None):
         """添加目录中的所有Markdown文件到EPUB"""
         if not self.book:
             raise ValueError("请先创建书籍")
         
         chapters = []
-        md_files = sorted([f for f in os.listdir(dir_path) if f.endswith('.md')])
+        md_files = sorted([f for f in os.listdir(dir_path) if f.endswith('.md')], key=self.natural_sort_key)
         
         self.log(f"发现 {len(md_files)} 个Markdown文件")
         
