@@ -26,6 +26,9 @@ class EpubConverter:
         self.book.set_language('zh-CN')
         self.book.add_author(author)
         
+        # 添加元数据确保单页显示
+        self.book.add_metadata(None, 'meta', '', {'name': 'fixed-layout', 'content': 'false'})
+        
         if cover_path and os.path.exists(cover_path):
             self.log(f"添加封面图片: {cover_path}")
             self.book.set_cover('cover.jpg', open(cover_path, 'rb').read())
@@ -193,6 +196,8 @@ class EpubConverter:
                 h1_sections = {}
                 h2_sections = {}
                 chapter_items = []
+                current_h1 = None
+                current_h2 = None
                 
                 for heading in headings:
                     level = int(heading.name[1])
@@ -215,6 +220,7 @@ class EpubConverter:
                         }
                         chapter_items.append((section, [link]))
                         current_h1 = heading_text
+                        current_h2 = None
                     elif level == 2 and current_h1 in h1_sections:
                         section = epub.Section(heading_text)
                         h2_sections[heading_text] = {
@@ -225,10 +231,6 @@ class EpubConverter:
                         }
                         h1_sections[current_h1]['items'].append((section, [link]))
                         current_h2 = heading_text
-                    elif level == 3 and current_h2 in h2_sections:
-                        h2_sections[current_h2]['items'].append(link)
-                    elif level == 3 and current_h1 in h1_sections:
-                        h1_sections[current_h1]['items'].append(link)
                     elif level == 2:
                         section = epub.Section(heading_text)
                         chapter_items.append((section, [link]))
@@ -239,6 +241,10 @@ class EpubConverter:
                         }
                         current_h2 = heading_text
                         current_h1 = None
+                    elif level == 3 and current_h2 in h2_sections:
+                        h2_sections[current_h2]['items'].append(link)
+                    elif level == 3 and current_h1 in h1_sections:
+                        h1_sections[current_h1]['items'].append(link)
                     else:
                         chapter_items.append(link)
                 
@@ -252,22 +258,44 @@ class EpubConverter:
         
         self.book.add_item(epub.EpubNcx())
         
+        self.log(f"是否添加目录页: {generate_toc_page}")
         if generate_toc_page:
             self.book.add_item(epub.EpubNav())
+            self.log("已添加目录页")
         
+        # 添加全局样式，确保单页显示和分页
         style = '''body { 
     font-family: Times, Times New Roman, serif; 
+    margin: 0;
+    padding: 0;
 }
 @page {
-    page-break-after: always;
-}'''
-        nav_css = epub.EpubItem(uid="style_nav", file_name="style/nav.css", media_type="text/css", content=style)
-        self.book.add_item(nav_css)
+    margin: 1cm;
+    size: auto;
+}
+div {
+    page-break-inside: avoid;
+}
+p {
+    widows: 2;
+    orphans: 2;
+}
+'''
+        style_item = epub.EpubItem(uid="style_global", file_name="style/global.css", media_type="text/css", content=style)
+        self.book.add_item(style_item)
+        
+        # 将样式链接到所有章节
+        for item in self.book.get_items():
+            if isinstance(item, epub.EpubHtml):
+                if not 'global.css' in item.content:
+                    item.content = f'<link rel="stylesheet" type="text/css" href="style/global.css" />\n' + item.content
         
         if generate_toc_page:
             self.book.spine = ['nav'] + chapters
+            self.log("spine 包含目录页")
         else:
             self.book.spine = chapters
+            self.log("spine 不包含目录页")
         
         self.log("目录生成完成")
     
