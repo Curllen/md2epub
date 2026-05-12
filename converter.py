@@ -7,10 +7,23 @@ import re
 import mimetypes
 from bs4 import BeautifulSoup
 
+def natural_sort_key(path):
+    """自然排序key函数，按数字排序文件名"""
+    parts = re.split(r'(\d+)', os.path.basename(path))
+    return [int(p) if p.isdigit() else p.lower() for p in parts]
+
 class EpubConverter:
-    def __init__(self):
+    def __init__(self, log_callback=None):
         self.book = None
         self.images_dir = None
+        self.log_callback = log_callback
+
+    def log(self, message, level="INFO"):
+        """输出日志"""
+        if self.log_callback:
+            self.log_callback(message, level)
+        else:
+            print(f"[{level}] {message}")
     
     def create_book(self, title, author, cover_path=None):
         """创建新的EPUB书籍"""
@@ -143,10 +156,12 @@ class EpubConverter:
             raise ValueError("请先创建书籍")
         
         chapters = []
-        md_files = sorted([f for f in os.listdir(dir_path) if f.endswith('.md')])
+        md_files = sorted([f for f in os.listdir(dir_path) if f.endswith('.md')], key=natural_sort_key)
+        self.log(f"Found {len(md_files)} Markdown files")
         
         for md_file in md_files:
             md_path = os.path.join(dir_path, md_file)
+            self.log(f"Processing: {md_file}")
             chapter = self.add_markdown_file(md_path, custom_toc)
             chapters.append(chapter)
         
@@ -154,8 +169,19 @@ class EpubConverter:
     
     def generate_toc(self, chapters, custom_toc=None):
         """生成目录，提取Markdown文档中的前三级标题并保持层级关系"""
-        if custom_toc:
+        self.log("Generating table of contents...")
+
+        if custom_toc == "filename":
+            # 使用文件名作为目录
+            self.log("Using filename as TOC", "INFO")
+            toc = []
+            for chapter in chapters:
+                chapter_title = os.path.basename(chapter.file_path).replace('.md', '')
+                toc.append(epub.Link(chapter.file_name, chapter_title, chapter_title.replace('.', '_')))
+            self.book.toc = toc
+        elif custom_toc:
             # 使用自定义目录
+            self.log("Using custom TOC", "INFO")
             toc = []
             for item in custom_toc:
                 toc.append(epub.Link(item['file'], item['title'], item['id']))
@@ -281,11 +307,15 @@ class EpubConverter:
         if not self.book:
             raise ValueError("请先创建书籍")
         
+        self.log(f"Saving EPUB to: {output_path}")
         # 确保输出目录存在
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        output_dir = os.path.dirname(output_path)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
         
         # 写入EPUB文件
         epub.write_epub(output_path, self.book, {})
+        self.log("Conversion completed!", "DONE")
         return output_path
     
     def convert_markdown_to_epub(self, input_path, output_path, title, author, cover_path=None, custom_toc=None, images_dir=None):

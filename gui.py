@@ -1,15 +1,18 @@
 import os
+import sys
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from tkinter.scrolledtext import ScrolledText
+import threading
+import traceback
 
 class MarkdownToEpubApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Markdown转EPUB工具")
-        self.root.geometry("700x700")
+        self.root.title("Markdown to EPUB")
+        self.root.geometry("700x800")
         self.root.resizable(True, True)
-        
+
         self.create_widgets()
         self.layout_widgets()
     
@@ -57,11 +60,19 @@ class MarkdownToEpubApp:
         self.toc_frame = ttk.LabelFrame(self.root, text="目录选项")
         self.toc_type = tk.StringVar(value="auto")
         self.auto_toc_radio = ttk.Radiobutton(self.toc_frame, text="自动生成目录", variable=self.toc_type, value="auto", command=self.toggle_toc_type)
+        self.filename_toc_radio = ttk.Radiobutton(self.toc_frame, text="文件名作为目录", variable=self.toc_type, value="filename", command=self.toggle_toc_type)
         self.custom_toc_radio = ttk.Radiobutton(self.toc_frame, text="自定义目录", variable=self.toc_type, value="custom", command=self.toggle_toc_type)
         
         # 自定义目录编辑区
         self.toc_editor_label = ttk.Label(self.toc_frame, text="每行一个目录项，格式: 标题|文件名")
         self.toc_editor = ScrolledText(self.toc_frame, height=10, width=50, state=tk.DISABLED)
+        
+        # 日志窗口
+        self.log_frame = ttk.LabelFrame(self.root, text="转换日志")
+        self.log_text = ScrolledText(self.log_frame, height=8, width=60, state=tk.DISABLED, font=('Courier', 9))
+        self.log_text.tag_config("INFO", foreground="black")
+        self.log_text.tag_config("DONE", foreground="green")
+        self.log_text.tag_config("ERROR", foreground="red")
         
         # 转换按钮
         self.convert_btn = ttk.Button(self.root, text="转换为EPUB", command=self.convert)
@@ -104,9 +115,14 @@ class MarkdownToEpubApp:
         # 目录选项布局
         self.toc_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         self.auto_toc_radio.pack(anchor=tk.W, padx=5, pady=2)
+        self.filename_toc_radio.pack(anchor=tk.W, padx=5, pady=2)
         self.custom_toc_radio.pack(anchor=tk.W, padx=5, pady=2)
         self.toc_editor_label.pack(anchor=tk.W, padx=5, pady=2)
         self.toc_editor.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # 日志窗口布局
+        self.log_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        self.log_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # 转换按钮布局
         self.convert_btn.pack(pady=10)
@@ -154,15 +170,36 @@ class MarkdownToEpubApp:
             self.images_path.set(dir_path)
     
     def toggle_toc_type(self):
-        if self.toc_type.get() == "auto":
+        if self.toc_type.get() == "auto" or self.toc_type.get() == "filename":
             self.toc_editor.config(state=tk.DISABLED)
         else:
             self.toc_editor.config(state=tk.NORMAL)
     
+    def get_timestamp(self):
+        from datetime import datetime
+        return datetime.now().strftime("%H:%M:%S")
+    
+    def add_log(self, message, level="INFO"):
+        def _update():
+            self.log_text.config(state=tk.NORMAL)
+            self.log_text.insert(tk.END, f"[{self.get_timestamp()}] {message}\n", level)
+            self.log_text.see(tk.END)
+            self.log_text.config(state=tk.DISABLED)
+        self.root.after(0, _update)
+    
+    def on_conversion_complete(self, success, message):
+        if success:
+            self.root.after(0, lambda: messagebox.showinfo("成功", message))
+            self.root.after(0, lambda: self.status_var.set("转换完成"))
+        else:
+            self.root.after(0, lambda: messagebox.showerror("错误", message))
+            self.root.after(0, lambda: self.status_var.set("转换失败"))
+        self.root.after(0, lambda: self.convert_btn.config(state=tk.NORMAL))
+    
     def parse_custom_toc(self):
         """解析自定义目录文本"""
         if self.toc_type.get() != "custom":
-            return None
+            return self.toc_type.get() if self.toc_type.get() != "auto" else None
         
         toc_text = self.toc_editor.get(1.0, tk.END)
         if not toc_text.strip():
@@ -185,14 +222,31 @@ class MarkdownToEpubApp:
         
         return toc_items if toc_items else None
     
+    def convert_thread(self):
+        """在线程中执行转换"""
+        try:
+            from converter import EpubConverter
+            converter = EpubConverter(log_callback=self.add_log)
+            
+            output_file = converter.convert_markdown_to_epub(
+                self.input_path.get(), 
+                self.output_path.get(), 
+                self.title_var.get(), 
+                self.author_var.get(),
+                self.cover_path.get() if self.cover_path.get() else None,
+                self.parse_custom_toc(),
+                self.images_path.get() if self.images_path.get() else None
+            )
+            self.on_conversion_complete(True, f"转换完成！\n文件已保存到: {output_file}")
+        except Exception as e:
+            self.add_log(f"Error: {str(e)}", "ERROR")
+            self.on_conversion_complete(False, f"转换失败: {str(e)}")
+    
     def convert(self):
-        # 验证输入
         input_path = self.input_path.get()
         output_path = self.output_path.get()
         title = self.title_var.get()
         author = self.author_var.get()
-        cover_path = self.cover_path.get() if self.cover_path.get() else None
-        images_dir = self.images_path.get() if self.images_path.get() else None
         
         if not input_path:
             messagebox.showerror("错误", "请选择输入文件或目录")
@@ -210,20 +264,15 @@ class MarkdownToEpubApp:
             messagebox.showerror("错误", "请输入作者名称")
             return
         
-        # 解析自定义目录
-        custom_toc = self.parse_custom_toc()
-        
-        # 更新状态
+        self.log_text.config(state=tk.NORMAL)
+        self.log_text.delete(1.0, tk.END)
+        self.log_text.config(state=tk.DISABLED)
+        self.add_log("Starting conversion...", "INFO")
+        self.convert_btn.config(state=tk.DISABLED)
         self.status_var.set("正在转换...")
-        self.root.update()
         
-        from converter import EpubConverter
-        converter = EpubConverter()
-        output_file = converter.convert_markdown_to_epub(
-            input_path, output_path, title, author, cover_path, custom_toc, images_dir
-        )
-        messagebox.showinfo("成功", f"转换完成！\n文件已保存到: {output_file}")
-        self.status_var.set("转换完成")
+        thread = threading.Thread(target=self.convert_thread, daemon=True)
+        thread.start()
     
     def use_default_images_dir(self):
         """设置默认图片目录（Markdown文档所在目录下的images子目录）"""
