@@ -3,12 +3,13 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from tkinter.scrolledtext import ScrolledText
 import threading
+import time
 
 class MarkdownToEpubApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Markdown转EPUB工具")
-        self.root.geometry("700x700")
+        self.root.geometry("700x800")
         self.root.resizable(True, True)
         
         self.create_widgets()
@@ -62,7 +63,11 @@ class MarkdownToEpubApp:
         
         # 自定义目录编辑区
         self.toc_editor_label = ttk.Label(self.toc_frame, text="每行一个目录项，格式: 标题|文件名")
-        self.toc_editor = ScrolledText(self.toc_frame, height=10, width=50, state=tk.DISABLED)
+        self.toc_editor = ScrolledText(self.toc_frame, height=8, width=50, state=tk.DISABLED)
+        
+        # 日志窗口
+        self.log_frame = ttk.LabelFrame(self.root, text="转换日志")
+        self.log_text = ScrolledText(self.log_frame, height=8, width=50, state=tk.DISABLED)
         
         # 转换按钮
         self.convert_btn = ttk.Button(self.root, text="转换为EPUB", command=self.convert)
@@ -103,17 +108,43 @@ class MarkdownToEpubApp:
         self.cover_btn.grid(row=2, column=2, padx=5, pady=5)
         
         # 目录选项布局
-        self.toc_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        self.toc_frame.pack(fill=tk.X, padx=10, pady=5)
         self.auto_toc_radio.pack(anchor=tk.W, padx=5, pady=2)
         self.custom_toc_radio.pack(anchor=tk.W, padx=5, pady=2)
         self.toc_editor_label.pack(anchor=tk.W, padx=5, pady=2)
-        self.toc_editor.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.toc_editor.pack(fill=tk.X, padx=5, pady=5)
+        
+        # 日志窗口布局
+        self.log_frame.pack(fill=tk.X, padx=10, pady=5)
+        self.log_text.pack(fill=tk.X, padx=5, pady=5)
         
         # 转换按钮布局
         self.convert_btn.pack(pady=10)
         
         # 状态栏布局
         self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+    
+    def add_log(self, message, level="info"):
+        """在日志窗口中添加消息"""
+        timestamp = time.strftime("%H:%M:%S")
+        prefix = {
+            "info": "[INFO] ",
+            "warning": "[WARN] ",
+            "error": "[ERROR]",
+            "success": "[DONE] "
+        }.get(level, "[INFO] ")
+        
+        self.log_text.config(state=tk.NORMAL)
+        self.log_text.insert(tk.END, f"{timestamp} {prefix}{message}\n")
+        self.log_text.see(tk.END)
+        self.log_text.config(state=tk.DISABLED)
+        self.root.update()
+    
+    def clear_log(self):
+        """清空日志窗口"""
+        self.log_text.config(state=tk.NORMAL)
+        self.log_text.delete(1.0, tk.END)
+        self.log_text.config(state=tk.DISABLED)
     
     def select_input_file(self):
         file_path = filedialog.askopenfilename(
@@ -194,8 +225,11 @@ class MarkdownToEpubApp:
         try:
             self.update_status("正在转换...")
             
+            def log_callback(msg, level="info"):
+                self.root.after(0, lambda: self.add_log(msg, level))
+            
             from converter import EpubConverter
-            converter = EpubConverter()
+            converter = EpubConverter(log_callback)
             output_file = converter.convert_markdown_to_epub(
                 input_path, output_path, title, author, cover_path, custom_toc, images_dir
             )
@@ -211,12 +245,14 @@ class MarkdownToEpubApp:
         """转换成功后的回调"""
         self.convert_btn.config(state=tk.NORMAL)
         self.status_var.set("转换完成")
+        self.add_log(f"转换完成！文件已保存到: {output_file}", "success")
         messagebox.showinfo("成功", f"转换完成！\n文件已保存到: {output_file}")
     
     def on_conversion_error(self, error_msg):
         """转换失败后的回调"""
         self.convert_btn.config(state=tk.NORMAL)
         self.status_var.set("转换失败")
+        self.add_log(f"转换失败: {error_msg}", "error")
         messagebox.showerror("转换错误", f"转换过程中发生错误:\n{error_msg}")
     
     def convert(self):
@@ -247,6 +283,7 @@ class MarkdownToEpubApp:
         
         self.convert_btn.config(state=tk.DISABLED)
         self.status_var.set("正在转换...")
+        self.clear_log()
         
         thread = threading.Thread(
             target=self.convert_thread,
