@@ -10,7 +10,7 @@ class MarkdownToEpubApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Markdown to EPUB")
-        self.root.geometry("700x800")
+        self.root.geometry("700x950")
         self.root.resizable(True, True)
 
         self.create_widgets()
