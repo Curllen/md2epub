@@ -153,9 +153,9 @@ class EpubConverter:
         
         return chapters
     
-    def generate_toc(self, chapters, custom_toc=None, toc_type="auto"):
+    def generate_toc(self, chapters, custom_toc=None, toc_type="auto", generate_toc_page=True):
         """生成目录"""
-        self.log(f"生成目录 (模式: {toc_type})...")
+        self.log(f"生成目录 (模式: {toc_type}, 生成目录页: {generate_toc_page})...")
         
         if custom_toc:
             toc = []
@@ -250,14 +250,21 @@ class EpubConverter:
             
             self.book.toc = toc
         
+        # 添加NCX导航文件（用于目录功能）
         self.book.add_item(epub.EpubNcx())
-        self.book.add_item(epub.EpubNav())
+        
+        # 根据选项决定是否生成目录页
+        if generate_toc_page:
+            self.book.add_item(epub.EpubNav())
+            self.book.spine = ['nav'] + chapters
+        else:
+            # 不生成目录页，直接以第一章开始
+            self.book.spine = chapters
         
         style = 'body { font-family: Times, Times New Roman, serif; }'
         nav_css = epub.EpubItem(uid="style_nav", file_name="style/nav.css", media_type="text/css", content=style)
         self.book.add_item(nav_css)
         
-        self.book.spine = ['nav'] + chapters
         self.log("目录生成完成")
     
     def save_epub(self, output_path):
@@ -274,7 +281,7 @@ class EpubConverter:
         epub.write_epub(output_path, self.book, {})
         return output_path
     
-    def convert_markdown_to_epub(self, input_path, output_path, title, author, cover_path=None, custom_toc=None, images_dir=None, toc_type="auto"):
+    def convert_markdown_to_epub(self, input_path, output_path, title, author, cover_path=None, custom_toc=None, images_dir=None, toc_type="auto", generate_toc_page=True):
         """将Markdown转换为EPUB的主函数"""
         self.log("开始转换...")
         
@@ -288,6 +295,6 @@ class EpubConverter:
         else:
             raise ValueError("输入路径必须是Markdown文件或包含Markdown文件的目录")
         
-        self.generate_toc(chapters, custom_toc, toc_type)
+        self.generate_toc(chapters, custom_toc, toc_type, generate_toc_page)
         
         return self.save_epub(output_path)

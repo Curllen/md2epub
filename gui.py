@@ -9,7 +9,7 @@ class MarkdownToEpubApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Markdown转EPUB工具")
-        self.root.geometry("700x800")
+        self.root.geometry("700x850")
         self.root.resizable(True, True)
         
         self.create_widgets()
@@ -43,6 +43,13 @@ class MarkdownToEpubApp:
         self.title_label = ttk.Label(self.book_info_frame, text="标题:")
         self.title_var = tk.StringVar()
         self.title_entry = ttk.Entry(self.book_info_frame, textvariable=self.title_var, width=40)
+        self.use_default_title_var = tk.BooleanVar(value=True)
+        self.use_default_title_check = ttk.Checkbutton(
+            self.book_info_frame, 
+            text="使用文件夹名", 
+            variable=self.use_default_title_var,
+            command=self.toggle_title_input
+        )
         
         # 作者
         self.author_label = ttk.Label(self.book_info_frame, text="作者:")
@@ -64,7 +71,15 @@ class MarkdownToEpubApp:
         
         # 自定义目录编辑区
         self.toc_editor_label = ttk.Label(self.toc_frame, text="每行一个目录项，格式: 标题|文件名")
-        self.toc_editor = ScrolledText(self.toc_frame, height=8, width=50, state=tk.DISABLED)
+        self.toc_editor = ScrolledText(self.toc_frame, height=6, width=50, state=tk.DISABLED)
+        
+        # 生成目录页选项
+        self.generate_toc_page_var = tk.BooleanVar(value=True)
+        self.generate_toc_page_check = ttk.Checkbutton(
+            self.toc_frame,
+            text="生成目录页",
+            variable=self.generate_toc_page_var
+        )
         
         # 日志窗口
         self.log_frame = ttk.LabelFrame(self.root, text="转换日志")
@@ -100,6 +115,7 @@ class MarkdownToEpubApp:
         
         self.title_label.grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
         self.title_entry.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W)
+        self.use_default_title_check.grid(row=0, column=2, padx=5, pady=5)
         
         self.author_label.grid(row=1, column=0, padx=5, pady=5, sticky=tk.W)
         self.author_entry.grid(row=1, column=1, padx=5, pady=5, sticky=tk.W)
@@ -115,6 +131,7 @@ class MarkdownToEpubApp:
         self.custom_toc_radio.pack(anchor=tk.W, padx=5, pady=2)
         self.toc_editor_label.pack(anchor=tk.W, padx=5, pady=2)
         self.toc_editor.pack(fill=tk.X, padx=5, pady=5)
+        self.generate_toc_page_check.pack(anchor=tk.W, padx=5, pady=5)
         
         # 日志窗口布局
         self.log_frame.pack(fill=tk.X, padx=10, pady=5)
@@ -125,6 +142,20 @@ class MarkdownToEpubApp:
         
         # 状态栏布局
         self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+    
+    def toggle_title_input(self):
+        """切换标题输入框状态"""
+        if self.use_default_title_var.get():
+            self.title_entry.config(state=tk.DISABLED)
+            # 重新根据输入路径设置标题
+            input_path = self.input_path.get()
+            if input_path:
+                if os.path.isfile(input_path):
+                    self.title_var.set(os.path.basename(input_path).replace('.md', ''))
+                else:
+                    self.title_var.set(os.path.basename(input_path))
+        else:
+            self.title_entry.config(state=tk.NORMAL)
     
     def add_log(self, message, level="info"):
         """在日志窗口中添加消息"""
@@ -154,13 +185,15 @@ class MarkdownToEpubApp:
         )
         if file_path:
             self.input_path.set(file_path)
-            self.title_var.set(os.path.basename(file_path).replace('.md', ''))
+            if self.use_default_title_var.get():
+                self.title_var.set(os.path.basename(file_path).replace('.md', ''))
     
     def select_input_dir(self):
         dir_path = filedialog.askdirectory(title="选择包含Markdown文件的目录")
         if dir_path:
             self.input_path.set(dir_path)
-            self.title_var.set(os.path.basename(dir_path))
+            if self.use_default_title_var.get():
+                self.title_var.set(os.path.basename(dir_path))
     
     def select_output_path(self):
         file_path = filedialog.asksaveasfilename(
@@ -220,7 +253,7 @@ class MarkdownToEpubApp:
         """在主线程中更新状态"""
         self.status_var.set(text)
     
-    def convert_thread(self, input_path, output_path, title, author, cover_path, images_dir, custom_toc, toc_type):
+    def convert_thread(self, input_path, output_path, title, author, cover_path, images_dir, custom_toc, toc_type, generate_toc_page):
         """在后台线程中执行转换"""
         try:
             self.root.after(0, lambda: self.update_status("正在转换..."))
@@ -231,7 +264,7 @@ class MarkdownToEpubApp:
             from converter import EpubConverter
             converter = EpubConverter(log_callback)
             output_file = converter.convert_markdown_to_epub(
-                input_path, output_path, title, author, cover_path, custom_toc, images_dir, toc_type
+                input_path, output_path, title, author, cover_path, custom_toc, images_dir, toc_type, generate_toc_page
             )
             
             self.root.after(0, lambda: self.on_conversion_success(output_file))
@@ -281,6 +314,7 @@ class MarkdownToEpubApp:
         
         toc_type = self.toc_type.get()
         custom_toc = self.parse_custom_toc()
+        generate_toc_page = self.generate_toc_page_var.get()
         
         self.convert_btn.config(state=tk.DISABLED)
         self.status_var.set("正在转换...")
@@ -288,7 +322,7 @@ class MarkdownToEpubApp:
         
         thread = threading.Thread(
             target=self.convert_thread,
-            args=(input_path, output_path, title, author, cover_path, images_dir, custom_toc, toc_type)
+            args=(input_path, output_path, title, author, cover_path, images_dir, custom_toc, toc_type, generate_toc_page)
         )
         thread.daemon = True
         thread.start()
