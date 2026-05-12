@@ -149,14 +149,22 @@ class EpubConverter:
         
         return chapters
     
-    def generate_toc(self, chapters, custom_toc=None):
+    def generate_toc(self, chapters, custom_toc=None, toc_type="auto"):
         """生成目录"""
-        self.log("生成目录...")
+        self.log(f"生成目录 (模式: {toc_type})...")
         
         if custom_toc:
             toc = []
             for item in custom_toc:
                 toc.append(epub.Link(item['file'], item['title'], item['id']))
+            self.book.toc = toc
+        elif toc_type == "filename":
+            toc = []
+            for chapter in chapters:
+                chapter_title = str(chapter.title)
+                chapter_filename = chapter.file_name
+                link = epub.Link(chapter_filename, chapter_title, chapter_filename.replace('.', '_'))
+                toc.append(link)
             self.book.toc = toc
         else:
             toc = []
@@ -262,7 +270,7 @@ class EpubConverter:
         epub.write_epub(output_path, self.book, {})
         return output_path
     
-    def convert_markdown_to_epub(self, input_path, output_path, title, author, cover_path=None, custom_toc=None, images_dir=None):
+    def convert_markdown_to_epub(self, input_path, output_path, title, author, cover_path=None, custom_toc=None, images_dir=None, toc_type="auto"):
         """将Markdown转换为EPUB的主函数"""
         self.log("开始转换...")
         
@@ -276,6 +284,6 @@ class EpubConverter:
         else:
             raise ValueError("输入路径必须是Markdown文件或包含Markdown文件的目录")
         
-        self.generate_toc(chapters, custom_toc)
+        self.generate_toc(chapters, custom_toc, toc_type)
         
         return self.save_epub(output_path)
