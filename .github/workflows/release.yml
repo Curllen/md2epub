@@ -1,10 +1,14 @@
-name: Release
+name: 构建发行版本
 
 on:
   push:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag name (e.g. v1.2.3)'
+        required: true
 
 permissions:
   contents: write
