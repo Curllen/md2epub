@@ -26,14 +26,14 @@ jobs:
       - name: Get tag
         id: get_tag
         run: |
-          $TAG = if('${{ github.event_name }}' -eq 'workflow_dispatch') { '${{ inputs.tag_name }}' } else { '${GITHUB_REF#refs/tags/}' }
+          $TAG = if('${{ github.event_name }}' -eq 'workflow_dispatch') { '${{ inputs.tag_name }}' } else { '${{ github.ref_name }}' }
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Create tag if not exists
         if: github.event_name == 'workflow_dispatch'
         run: |
-          git tag ${{ inputs.tag_name }} || true
-          git push origin ${{ inputs.tag_name }} || true
+          git tag ${{ inputs.tag_name }}
+          git push origin ${{ inputs.tag_name }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -53,7 +53,7 @@ jobs:
 
       - name: Create Release
         id: create_release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: dist/Markdown2EPUB.exe
           tag_name: ${{ steps.get_tag.outputs.tag }}
@@ -88,7 +88,7 @@ jobs:
           zip -r Markdown2EPUB.app.zip Markdown2EPUB.app
 
       - name: Upload macOS application
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: dist/Markdown2EPUB.app.zip
           tag_name: ${{ needs.build-windows.outputs.tag_name }}
